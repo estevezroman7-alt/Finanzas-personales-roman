@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Finanzas</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; width: 100%; }
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #08111F;
+    color: #E8EDF5;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #1E3A5F; border-radius: 2px; }
+  input, textarea, select {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    outline: none;
+    border: none;
+    background: none;
+  }
+  button { font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; border: none; outline: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ─── THEME ────────────────────────────────────────────────────────────────────
+const T = {
+  bg0: '#08111F',
+  bg1: '#0D1E35',
+  bg2: '#122845',
+  bg3: '#1A3358',
+  border: '#1E3A5F',
+  borderLight: '#254870',
+  green: '#00D68F',
+  greenDim: '#00A86B',
+  greenBg: 'rgba(0,214,143,0.10)',
+  greenBg2: 'rgba(0,214,143,0.06)',
+  red: '#FF6B6B',
+  redBg: 'rgba(255,107,107,0.10)',
+  blue: '#4A9EFF',
+  blueBg: 'rgba(74,158,255,0.10)',
+  text: '#E8EDF5',
+  textMid: '#A0B4CC',
+  textDim: '#5A7A9A',
+  yellow: '#FFD166',
+};
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+const fmt = (n, currency = 'ARS') => {
+  return fmtFull(n, currency);
+};
+
+const fmtFull = (n, currency = 'ARS') => {
+  const sym = currency === 'ARS' ? '$' : currency === 'USD' ? 'U$D' : currency === 'EUR' ? '€' : '$';
+  return `${sym} ${Math.abs(n).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+};
+
+const fmtDate = (iso) => {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day:'2-digit', month:'short' });
+};
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+const CATEGORIES = [
+  { id:'food', label:'Comida', icon:'🍽' },
+  { id:'transport', label:'Transporte', icon:'🚗' },
+  { id:'health', label:'Salud', icon:'🏥' },
+  { id:'entertainment', label:'Entretenimiento', icon:'🎬' },
+  { id:'services', label:'Servicios', icon:'💡' },
+  { id:'shopping', label:'Compras', icon:'🛍' },
+  { id:'education', label:'Educación', icon:'📚' },
+  { id:'salary', label:'Sueldo', icon:'💼' },
+  { id:'freelance', label:'Freelance', icon:'💻' },
+  { id:'investment', label:'Inversión', icon:'📈' },
+  { id:'transfer', label:'Transferencia', icon:'↔️' },
+  { id:'other', label:'Otro', icon:'📌' },
+];
+
+const ACCOUNT_ICONS = { bank:'🏦', wallet:'👛', digital:'📱', cash:'💵', crypto:'₿', savings:'🏧' };
+
+// ─── STORAGE ──────────────────────────────────────────────────────────────────
+const load = (key, def) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch { return def; } };
+const save = (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
+
+const DEFAULT_ACCOUNTS = [
+  { id:'a1', name:'Banco Galicia', type:'bank', balance:150000, currency:'ARS' },
+  { id:'a2', name:'Mercado Pago', type:'digital', balance:45200, currency:'ARS' },
+  { id:'a3', name:'Efectivo', type:'cash', balance:12000, currency:'ARS' },
+];
+
+const DEFAULT_TRANSACTIONS = [
+  { id:'t1', type:'expense', amount:3500, currency:'ARS', accountId:'a1', category:'food', date: new Date(Date.now()-86400000).toISOString(), note:'Supermercado' },
+  { id:'t2', type:'income', amount:220000, currency:'ARS', accountId:'a1', category:'salary', date: new Date(Date.now()-2*86400000).toISOString(), note:'Sueldo Abril' },
+  { id:'t3', type:'expense', amount:8500, currency:'ARS', accountId:'a2', category:'services', date: new Date(Date.now()-3*86400000).toISOString(), note:'Netflix' },
+  { id:'t4', type:'expense', amount:1200, currency:'ARS', accountId:'a3', category:'transport', date: new Date(Date.now()-86400000).toISOString(), note:'Colectivo' },
+];
+
+const DEFAULT_FIXED = [
+  { id:'f1', name:'Alquiler', amount:85000, currency:'ARS', paid:false },
+  { id:'f2', name:'Expensas', amount:22000, currency:'ARS', paid:true },
+  { id:'f3', name:'Internet', amount:8500, currency:'ARS', paid:false },
+  { id:'f4', name:'Spotify', amount:2500, currency:'ARS', paid:true },
+  { id:'f5', name:'Gimnasio', amount:12000, currency:'ARS', paid:false },
+];
+
+const DEFAULT_INVESTMENTS = [
+  { id:'i1', name:'CEDEAR AAPL', ticker:'AAPL', buyPrice:4200, quantity:5, currency:'ARS' },
+  { id:'i2', name:'CEDEAR MELI', ticker:'MELI', buyPrice:9800, quantity:2, currency:'ARS' },
+];
+
+// ─── ICONS ────────────────────────────────────────────────────────────────────
+const Icon = ({ name, size=20, color=T.textMid }) => {
+  const paths = {
+    home: 'M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10',
+    plan: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2 M9 5a2 2 0 002 2h2a2 2 0 002-2 M9 5a2 2 0 012-2h2a2 2 0 012 2 M9 12h6 M9 16h4',
+    stats: 'M18 20V10 M12 20V4 M6 20v-6',
+    invest: 'M22 12h-4l-3 9L9 3l-3 9H2',
+    plus: 'M12 5v14 M5 12h14',
+    check: 'M20 6L9 17l-5-5',
+    trash: 'M3 6h18 M8 6V4h8v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6',
+    edit: 'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z',
+    arrow_up: 'M12 19V5 M5 12l7-7 7 7',
+    arrow_down: 'M12 5v14 M19 12l-7 7-7-7',
+    x: 'M18 6L6 18 M6 6l12 12',
+    wallet: 'M21 12V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2v-5 M16 12a2 2 0 000 4h5v-4h-5z',
+    eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z',
+    eyeoff: 'M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94 M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19 M1 1l22 22',
+    refresh: 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0020.49 15',
+    chevdown: 'M6 9l6 6 6-6',
+    info: 'M12 2a10 10 0 100 20A10 10 0 0012 2z M12 8v4 M12 16h.01',
+  };
+  const d = paths[name] || '';
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {d.split(' M').filter(Boolean).map((seg, i) => (
+        <path key={i} d={(i === 0 ? '' : 'M') + seg} />
+      ))}
+    </svg>
+  );
+};
+
+// ─── MODAL BASE ───────────────────────────────────────────────────────────────
+const Modal = ({ open, onClose, title, children, height='auto' }) => {
+  if (!open) return null;
+  return (
+    <div onClick={onClose} style={{
+      position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:100,
+      display:'flex', alignItems:'flex-end', justifyContent:'center',
+      backdropFilter:'blur(4px)',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: T.bg1,
+        borderRadius:'20px 20px 0 0',
+        width:'100%', maxWidth:480,
+        maxHeight:'90vh', overflowY:'auto',
+        padding:'0 0 32px',
+        border:`1px solid ${T.border}`,
+        borderBottom:'none',
+        animation: 'slideUp 0.25s ease',
+      }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'20px 20px 16px' }}>
+          <span style={{ fontWeight:700, fontSize:17 }}>{title}</span>
+          <button onClick={onClose} style={{ background:'none', color:T.textMid, padding:4 }}>
+            <Icon name="x" size={20} color={T.textMid} />
+          </button>
+        </div>
+        <div style={{ padding:'0 20px' }}>{children}</div>
+      </div>
+    </div>
+  );
+};
+
+// ─── FIELD ────────────────────────────────────────────────────────────────────
+const Field = ({ label, children }) => (
+  <div style={{ marginBottom:16 }}>
+    <div style={{ fontSize:11, fontWeight:600, color:T.textDim, textTransform:'uppercase', letterSpacing:1, marginBottom:8 }}>{label}</div>
+    {children}
+  </div>
+);
+
+const Input = ({ value, onChange, placeholder, type='text', style={} }) => (
+  <input
+    type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+    style={{
+      width:'100%', background:T.bg2, border:`1px solid ${T.border}`,
+      borderRadius:10, padding:'11px 14px', color:T.text, fontSize:15,
+      ...style,
+    }}
+  />
+);
+
+const Select = ({ value, onChange, children, style={} }) => (
+  <select value={value} onChange={e => onChange(e.target.value)} style={{
+    width:'100%', background:T.bg2, border:`1px solid ${T.border}`,
+    borderRadius:10, padding:'11px 14px', color:T.text, fontSize:15,
+    appearance:'none', cursor:'pointer', ...style,
+  }}>
+    {children}
+  </select>
+);
+
+// ─── CHIP ROW ─────────────────────────────────────────────────────────────────
+const ChipRow = ({ options, value, onChange }) => (
+  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+    {options.map(o => (
+      <button key={o.id} onClick={() => onChange(o.id)} style={{
+        padding:'7px 14px', borderRadius:20,
+        background: value === o.id ? T.green : T.bg2,
+        color: value === o.id ? '#08111F' : T.textMid,
+        fontSize:13, fontWeight:600,
+        border: `1px solid ${value === o.id ? T.green : T.border}`,
+        transition:'all 0.15s',
+      }}>
+        {o.icon && <span style={{ marginRight:4 }}>{o.icon}</span>}{o.label}
+      </button>
+    ))}
+  </div>
+);
+
+// ─── ADD TRANSACTION MODAL ────────────────────────────────────────────────────
+const AddTransactionModal = ({ open, onClose, accounts, onAdd }) => {
+  const [type, setType] = useState('expense');
+  const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('ARS');
+  const [accountId, setAccountId] = useState(accounts[0]?.id || '');
+  const [category, setCategory] = useState('food');
+  const [date, setDate] = useState(new Date().toISOString().slice(0,16));
+  const [note, setNote] = useState('');
+
+  const handleSubmit = () => {
+    if (!amount || isNaN(+amount) || !accountId) return;
+    onAdd({ id:uid(), type, amount:+amount, currency, accountId, category, date: new Date(date).toISOString(), note });
+    setAmount(''); setNote('');
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="Nuevo movimiento">
+      <Field label="Tipo">
+        <div style={{ display:'flex', gap:8 }}>
+          {[{id:'expense',label:'Egreso'},{id:'income',label:'Ingreso'}].map(t => (
+            <button key={t.id} onClick={() => setType(t.id)} style={{
+              flex:1, padding:'10px', borderRadius:10,
+              background: type === t.id ? (t.id==='expense' ? T.red : T.green) : T.bg2,
+              color: type === t.id ? (t.id==='expense' ? '#fff' : '#08111F') : T.textMid,
+              fontWeight:700, fontSize:15,
+              border:`1px solid ${type===t.id ? (t.id==='expense'?T.red:T.green) : T.border}`,
+              transition:'all 0.15s',
+            }}>{t.label}</button>
+          ))}
+        </div>
+      </Field>
+      <Field label="Monto">
+        <div style={{ display:'flex', gap:8 }}>
+          <select value={currency} onChange={e => setCurrency(e.target.value)} style={{
+            background:T.bg2, border:`1px solid ${T.border}`, borderRadius:10,
+            padding:'11px 12px', color:T.text, fontSize:14, width:90, appearance:'none',
+          }}>
+            <option value="ARS">ARS</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+          </select>
+          <Input value={amount} onChange={setAmount} placeholder="0.00" type="number" />
+        </div>
+      </Field>
+      <Field label="Cuenta">
+        <Select value={accountId} onChange={setAccountId}>
+          {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </Select>
+      </Field>
+      <Field label="Categoría">
+        <ChipRow options={CATEGORIES} value={category} onChange={setCategory} />
+      </Field>
+      <Field label="Fecha y hora">
+        <Input value={date} onChange={setDate} type="datetime-local" />
+      </Field>
+      <Field label="Nota (opcional)">
+        <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Añadir nota..." style={{
+          width:'100%', background:T.bg2, border:`1px solid ${T.border}`,
+          borderRadius:10, padding:'11px 14px', color:T.text, fontSize:15,
+          resize:'none', height:72, fontFamily:'inherit',
+        }} />
+      </Field>
+      <button onClick={handleSubmit} style={{
+        width:'100%', padding:15, borderRadius:12,
+        background:`linear-gradient(135deg, ${T.green}, ${T.greenDim})`,
+        color:'#08111F', fontWeight:800, fontSize:16,
+        marginTop:4,
+      }}>Guardar</button>
+    </Modal>
+  );
+};
+
+// ─── ADD ACCOUNT MODAL ────────────────────────────────────────────────────────
+const AddAccountModal = ({ open, onClose, onAdd }) => {
+  const [name, setName] = useState('');
+  const [type, setType] = useState('bank');
+  const [balance, setBalance] = useState('');
+  const [currency, setCurrency] = useState('ARS');
+  const types = [
+    {id:'bank',label:'Banco'},{id:'digital',label:'Billetera Virtual'},
+    {id:'wallet',label:'Billetera'},{id:'cash',label:'Efectivo'},
+    {id:'savings',label:'Ahorro'},{id:'crypto',label:'Crypto'},
+  ];
+  const handleSubmit = () => {
+    if (!name || isNaN(+balance)) return;
+    onAdd({ id:uid(), name, type, balance:+balance, currency });
+    setName(''); setBalance(''); onClose();
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="Nueva cuenta">
+      <Field label="Nombre"><Input value={name} onChange={setName} placeholder="Ej: Mercado Pago" /></Field>
+      <Field label="Tipo"><ChipRow options={types} value={type} onChange={setType} /></Field>
+      <Field label="Saldo inicial">
+        <div style={{ display:'flex', gap:8 }}>
+          <select value={currency} onChange={e => setCurrency(e.target.value)} style={{
+            background:T.bg2, border:`1px solid ${T.border}`, borderRadius:10,
+            padding:'11px 12px', color:T.text, fontSize:14, width:90, appearance:'none',
+          }}>
+            <option value="ARS">ARS</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+          </select>
+          <Input value={balance} onChange={setBalance} placeholder="0" type="number" />
+        </div>
+      </Field>
+      <button onClick={handleSubmit} style={{
+        width:'100%', padding:15, borderRadius:12,
+        background:`linear-gradient(135deg, ${T.green}, ${T.greenDim})`,
+        color:'#08111F', fontWeight:800, fontSize:16, marginTop:4,
+      }}>Agregar cuenta</button>
+    </Modal>
+  );
+};
+
+// ─── PANEL TAB ────────────────────────────────────────────────────────────────
+const PanelTab = ({ accounts, transactions, setAccounts, exchangeRate, rateLoading, refreshRate }) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [hideBalance, setHideBalance] = useState(false);
+
+  const total = accounts.reduce((s, a) => s + (a.currency === 'ARS' ? a.balance : a.balance * (exchangeRate || 1)), 0);
+  const recent = [...transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 12);
+
+  const deleteAccount = (id) => setAccounts(prev => prev.filter(a => a.id !== id));
+
+  return (
+    <div style={{ overflowY:'auto', height:'100%', paddingBottom:20 }}>
+      {/* Header */}
+      <div style={{ padding:'52px 20px 20px', background:`linear-gradient(180deg, ${T.bg1} 0%, ${T.bg0} 100%)` }}>
+        <div style={{ fontSize:12, color:T.textDim, fontWeight:600, letterSpacing:1, textTransform:'uppercase', marginBottom:4 }}>Patrimonio total</div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ fontSize:36, fontWeight:800, letterSpacing:-1, color:T.text }}>
+            {hideBalance ? '••••••' : fmtFull(total)}
+          </div>
+          <button onClick={() => setHideBalance(v => !v)} style={{ background:'none', marginTop:4 }}>
+            <Icon name={hideBalance ? 'eye' : 'eyeoff'} size={18} color={T.textDim} />
+          </button>
+        </div>
+        <div style={{ fontSize:12, color:T.textDim, marginTop:4 }}>en pesos argentinos</div>
+      </div>
+
+      {/* Exchange Rate */}
+      <div style={{ margin:'0 20px 20px', padding:'14px 16px', background:T.bg1, borderRadius:14, border:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div>
+          <div style={{ fontSize:11, color:T.textDim, fontWeight:600, textTransform:'uppercase', letterSpacing:0.8, marginBottom:3 }}>Dólar Oficial</div>
+          {rateLoading
+            ? <div style={{ fontSize:16, color:T.textDim }}>Cargando...</div>
+            : exchangeRate
+              ? <div style={{ fontSize:18, fontWeight:700, color:T.yellow }}>$ {exchangeRate?.toLocaleString('es-AR', {minimumFractionDigits:2})}</div>
+              : <div style={{ fontSize:14, color:T.red }}>Sin datos</div>
+          }
+        </div>
+        <button onClick={refreshRate} style={{ background:T.bg2, border:`1px solid ${T.border}`, borderRadius:10, padding:'8px 12px', display:'flex', alignItems:'center', gap:6, color:T.textMid, fontSize:13, fontWeight:600 }}>
+          <Icon name="refresh" size={14} color={T.textMid} />Actualizar
+        </button>
+      </div>
+
+      {/* Accounts */}
+      <div style={{ padding:'0 20px', marginBottom:20 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+          <span style={{ fontWeight:700, fontSize:16 }}>Cuentas</span>
+          <button onClick={() => setShowAdd(true)} style={{
+            background:T.greenBg, border:`1px solid ${T.green}`, borderRadius:8,
+            padding:'6px 12px', color:T.green, fontSize:13, fontWeight:700,
+            display:'flex', alignItems:'center', gap:4,
+          }}>
+            <Icon name="plus" size={14} color={T.green} /> Nueva
+          </button>
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {accounts.map(acc => (
+            <div key={acc.id} style={{
+              background:T.bg1, border:`1px solid ${T.border}`, borderRadius:14,
+              padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between',
+            }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ width:40, height:40, borderRadius:12, background:T.bg2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>
+                  {ACCOUNT_ICONS[acc.type] || '💳'}
+                </div>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:15 }}>{acc.name}</div>
+                  <div style={{ fontSize:12, color:T.textDim, marginTop:2 }}>{acc.type === 'bank' ? 'Banco' : acc.type === 'digital' ? 'Billetera Virtual' : acc.type === 'cash' ? 'Efectivo' : acc.type === 'crypto' ? 'Crypto' : acc.type === 'savings' ? 'Ahorro' : 'Billetera'}</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontWeight:700, fontSize:16, color:T.green }}>{hideBalance ? '••••' : fmt(acc.balance, acc.currency)}</div>
+                  <div style={{ fontSize:11, color:T.textDim }}>{acc.currency}</div>
+                </div>
+                <button onClick={() => deleteAccount(acc.id)} style={{ background:'none', padding:4 }}>
+                  <Icon name="trash" size={16} color={T.textDim} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {accounts.length === 0 && (
+            <div style={{ textAlign:'center', padding:'30px 0', color:T.textDim, fontSize:14 }}>
+              No hay cuentas. Agrega una para empezar.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent Transactions */}
+      <div style={{ padding:'0 20px' }}>
+        <div style={{ fontWeight:700, fontSize:16, marginBottom:14 }}>Últimos movimientos</div>
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {recent.map(tx => {
+            const cat = CATEGORIES.find(c => c.id === tx.category);
+            const acc = accounts.find(a => a.id === tx.accountId);
+            return (
+              <div key={tx.id} style={{
+                background:T.bg1, border:`1px solid ${T.border}`, borderRadius:12,
+                padding:'12px 14px', display:'flex', alignItems:'center', justifyContent:'space-between',
+              }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ width:36, height:36, borderRadius:10, background:tx.type==='income'?T.greenBg:T.redBg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:17 }}>
+                    {cat?.icon || '•'}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:600, fontSize:14 }}>{tx.note || cat?.label || 'Movimiento'}</div>
+                    <div style={{ fontSize:11, color:T.textDim, marginTop:2 }}>{acc?.name || '—'} · {fmtDate(tx.date)}</div>
+                  </div>
+                </div>
+                <div style={{ fontWeight:700, fontSize:15, color: tx.type==='income' ? T.green : T.red }}>
+                  {tx.type==='income' ? '+' : '-'}{fmt(tx.amount, tx.currency)}
+                </div>
+              </div>
+            );
+          })}
+          {recent.length === 0 && <div style={{ textAlign:'center', padding:'30px 0', color:T.textDim, fontSize:14 }}>Sin movimientos aún</div>}
+        </div>
+      </div>
+
+      <AddAccountModal open={showAdd} onClose={() => setShowAdd(false)} onAdd={acc => setAccounts(prev => [...prev, acc])} />
+    </div>
+  );
+};
+
+// ─── PLANIFICACIÓN TAB ────────────────────────────────────────────────────────
+const PlanTab = ({ fixed, setFixed }) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState('ARS');
+
+  const total = fixed.reduce((s, f) => s + f.amount, 0);
+  const paid = fixed.filter(f => f.paid).reduce((s, f) => s + f.amount, 0);
+  const pct = total > 0 ? (paid / total) * 100 : 0;
+
+  const togglePaid = (id) => setFixed(prev => prev.map(f => f.id === id ? {...f, paid: !f.paid} : f));
+  const deleteFixed = (id) => setFixed(prev => prev.filter(f => f.id !== id));
+  const addFixed = () => {
+    if (!name || isNaN(+amount)) return;
+    setFixed(prev => [...prev, { id:uid(), name, amount:+amount, currency, paid:false }]);
+    setName(''); setAmount(''); setShowAdd(false);
+  };
+
+  const now = new Date();
+  const monthName = now.toLocaleDateString('es-AR', { month:'long', year:'numeric' });
+
+  return (
+    <div style={{ overflowY:'auto', height:'100%', paddingBottom:20 }}>
+      <div style={{ padding:'52px 20px 20px' }}>
+        <div style={{ fontSize:12, color:T.textDim, fontWeight:600, letterSpacing:1, textTransform:'uppercase', marginBottom:4 }}>
+          {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
+        </div>
+        <div style={{ fontWeight:800, fontSize:26, marginBottom:2 }}>Gastos fijos</div>
+      </div>
+
+      {/* Progress */}
+      <div style={{ margin:'0 20px 24px', padding:'18px', background:T.bg1, borderRadius:16, border:`1px solid ${T.border}` }}>
+        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:12 }}>
+          <div>
+            <div style={{ fontSize:11, color:T.textDim, textTransform:'uppercase', letterSpacing:0.8, marginBottom:4 }}>Saldado</div>
+            <div style={{ fontWeight:700, fontSize:20, color:T.green }}>{fmtFull(paid)}</div>
+          </div>
+          <div style={{ textAlign:'right' }}>
+            <div style={{ fontSize:11, color:T.textDim, textTransform:'uppercase', letterSpacing:0.8, marginBottom:4 }}>Total</div>
+            <div style={{ fontWeight:700, fontSize:20 }}>{fmtFull(total)}</div>
+          </div>
+        </div>
+        <div style={{ background:T.bg3, borderRadius:999, height:6, overflow:'hidden' }}>
+          <div style={{ width:`${pct}%`, height:'100%', background:`linear-gradient(90deg, ${T.green}, ${T.greenDim})`, borderRadius:999, transition:'width 0.4s ease' }} />
+        </div>
+        <div style={{ textAlign:'right', marginTop:6, fontSize:12, color:T.textDim }}>{Math.round(pct)}% completado</div>
+      </div>
+
+      {/* List */}
+      <div style={{ padding:'0 20px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+          <span style={{ fontWeight:700, fontSize:16 }}>{fixed.length} gastos</span>
+          <button onClick={() => setShowAdd(v => !v)} style={{
+            background:T.greenBg, border:`1px solid ${T.green}`, borderRadius:8,
+            padding:'6px 12px', color:T.green, fontSize:13, fontWeight:700,
+            display:'flex', alignItems:'center', gap:4,
+          }}>
+            <Icon name="plus" size={14} color={T.green} /> Nuevo
+          </button>
+        </div>
+
+        {showAdd && (
+          <div style={{ background:T.bg1, border:`1px solid ${T.borderLight}`, borderRadius:14, padding:16, marginBottom:16 }}>
+            <Input value={name} onChange={setName} placeholder="Nombre del gasto" style={{ marginBottom:10 }} />
+            <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+              <select value={currency} onChange={e => setCurrency(e.target.value)} style={{
+                background:T.bg2, border:`1px solid ${T.border}`, borderRadius:10,
+                padding:'11px 12px', color:T.text, fontSize:14, width:90, appearance:'none',
+              }}>
+                <option value="ARS">ARS</option>
+                <option value="USD">USD</option>
+              </select>
+              <Input value={amount} onChange={setAmount} placeholder="Monto" type="number" />
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => setShowAdd(false)} style={{ flex:1, padding:'10px', borderRadius:10, background:T.bg2, border:`1px solid ${T.border}`, color:T.textMid, fontWeight:600 }}>Cancelar</button>
+              <button onClick={addFixed} style={{ flex:2, padding:'10px', borderRadius:10, background:T.green, color:'#08111F', fontWeight:700 }}>Agregar</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {fixed.map(f => (
+            <div key={f.id} style={{
+              background: f.paid ? T.greenBg2 : T.bg1,
+              border:`1px solid ${f.paid ? T.green+'33' : T.border}`,
+              borderRadius:12, padding:'14px 16px',
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+              transition:'all 0.2s',
+            }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <button onClick={() => togglePaid(f.id)} style={{
+                  width:28, height:28, borderRadius:8,
+                  background: f.paid ? T.green : T.bg2,
+                  border:`2px solid ${f.paid ? T.green : T.borderLight}`,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  transition:'all 0.2s',
+                }}>
+                  {f.paid && <Icon name="check" size={14} color="#08111F" />}
+                </button>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:15, color: f.paid ? T.textDim : T.text, textDecoration: f.paid ? 'line-through' : 'none' }}>{f.name}</div>
+                  <div style={{ fontSize:12, color:T.textDim, marginTop:2 }}>{f.currency}</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ fontWeight:700, fontSize:16, color: f.paid ? T.textDim : T.text }}>
+                  {fmtFull(f.amount, f.currency)}
+                </div>
+                <button onClick={() => deleteFixed(f.id)} style={{ background:'none', padding:4 }}>
+                  <Icon name="trash" size={16} color={T.textDim} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {fixed.length === 0 && <div style={{ textAlign:'center', padding:'40px 0', color:T.textDim, fontSize:14 }}>No hay gastos fijos. Agrega uno.</div>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── ESTADÍSTICAS TAB ─────────────────────────────────────────────────────────
+const StatsTab = ({ transactions, accounts }) => {
+  const [period, setPeriod] = useState('month');
+
+  const now = new Date();
+  const filterTx = transactions.filter(tx => {
+    const d = new Date(tx.date);
+    if (period === 'day') return d.toDateString() === now.toDateString();
+    if (period === 'week') { const w = new Date(now); w.setDate(now.getDate()-7); return d >= w; }
+    if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (period === 'year') return d.getFullYear() === now.getFullYear();
+    return true;
+  });
+
+  const expenses = filterTx.filter(t => t.type === 'expense');
+  const incomes = filterTx.filter(t => t.type === 'income');
+  const totalExp = expenses.reduce((s, t) => s + t.amount, 0);
+  const totalInc = incomes.reduce((s, t) => s + t.amount, 0);
+  const balance = totalInc - totalExp;
+
+  // By category
+  const byCat = CATEGORIES.map(cat => {
+    const txs = expenses.filter(t => t.category === cat.id);
+    const total = txs.reduce((s, t) => s + t.amount, 0);
+    return { ...cat, total, count: txs.length };
+  }).filter(c => c.total > 0).sort((a, b) => b.total - a.total);
+
+  // Daily spending for bar chart (last 7 or 30 days)
+  const barDays = period === 'day' ? 7 : period === 'week' ? 7 : period === 'month' ? 30 : 12;
+  const barData = [];
+  for (let i = barDays - 1; i >= 0; i--) {
+    const d = new Date(now);
+    if (period === 'year') { d.setMonth(now.getMonth() - i); d.setDate(1); }
+    else d.setDate(now.getDate() - i);
+    const label = period === 'year'
+      ? d.toLocaleDateString('es-AR', { month:'short' })
+      : d.toLocaleDateString('es-AR', { day:'2-digit', month:'short' });
+    const dayTx = transactions.filter(t => {
+      const td = new Date(t.date);
+      if (period === 'year') return td.getMonth() === d.getMonth() && td.getFullYear() === d.getFullYear();
+      return td.toDateString() === d.toDateString();
+    });
+    barData.push({
+      label,
+      expenses: dayTx.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+      income: dayTx.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+    });
+  }
+  const maxBar = Math.max(...barData.map(d => Math.max(d.expenses, d.income)), 1);
+
+  const periods = [{id:'day',label:'Hoy'},{id:'week',label:'Semana'},{id:'month',label:'Mes'},{id:'year',label:'Año'},{id:'all',label:'Todo'}];
+
+  return (
+    <div style={{ overflowY:'auto', height:'100%', paddingBottom:20 }}>
+      <div style={{ padding:'52px 20px 20px' }}>
+        <div style={{ fontWeight:800, fontSize:26, marginBottom:16 }}>Estadísticas</div>
+        {/* Period selector */}
+        <div style={{ display:'flex', gap:6, background:T.bg1, padding:5, borderRadius:12, border:`1px solid ${T.border}` }}>
+          {periods.map(p => (
+            <button key={p.id} onClick={() => setPeriod(p.id)} style={{
+              flex:1, padding:'8px 4px', borderRadius:9, fontSize:13, fontWeight:600,
+              background: period === p.id ? T.green : 'transparent',
+              color: period === p.id ? '#08111F' : T.textMid,
+              transition:'all 0.15s',
+            }}>{p.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ padding:'0 20px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:20 }}>
+        {[
+          { label:'Ingresos', val:totalInc, color:T.green },
+          { label:'Gastos', val:totalExp, color:T.red },
+          { label:'Balance', val:balance, color: balance >= 0 ? T.green : T.red },
+        ].map(c => (
+          <div key={c.label} style={{ background:T.bg1, border:`1px solid ${T.border}`, borderRadius:14, padding:'14px 12px' }}>
+            <div style={{ fontSize:11, color:T.textDim, fontWeight:600, letterSpacing:0.6, marginBottom:6 }}>{c.label}</div>
+            <div style={{ fontWeight:800, fontSize:15, color:c.color }}>{fmt(c.val)}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bar chart */}
+      <div style={{ margin:'0 20px 20px', padding:'16px', background:T.bg1, borderRadius:16, border:`1px solid ${T.border}` }}>
+        <div style={{ fontWeight:700, fontSize:14, marginBottom:14 }}>
+          {period === 'year' ? 'Por mes' : period === 'day' ? 'Últimos 7 días' : `Últimos ${barDays} días`}
+        </div>
+        <div style={{ display:'flex', alignItems:'flex-end', gap:4, height:90 }}>
+          {barData.map((d, i) => (
+            <div key={i} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+              <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:2, alignItems:'center' }}>
+                {d.income > 0 && <div style={{ width:'60%', height: Math.max(2, (d.income/maxBar)*70), background:T.green, borderRadius:3, opacity:0.7 }} />}
+                {d.expenses > 0 && <div style={{ width:'60%', height: Math.max(2, (d.expenses/maxBar)*70), background:T.red, borderRadius:3, opacity:0.7 }} />}
+                {d.income === 0 && d.expenses === 0 && <div style={{ width:'60%', height:3, background:T.bg3, borderRadius:3 }} />}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'flex', gap:4, marginTop:4 }}>
+          {barData.map((d, i) => (
+            <div key={i} style={{ flex:1, textAlign:'center', fontSize:9, color:T.textDim, overflow:'hidden' }}>
+              {i % Math.ceil(barData.length / 6) === 0 ? d.label.split(' ')[0] : ''}
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'flex', gap:16, marginTop:10 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:T.textDim }}>
+            <div style={{ width:10, height:10, borderRadius:2, background:T.green }} /> Ingresos
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:T.textDim }}>
+            <div style={{ width:10, height:10, borderRadius:2, background:T.red }} /> Gastos
+          </div>
+        </div>
+      </div>
+
+      {/* By category */}
+      <div style={{ padding:'0 20px' }}>
+        <div style={{ fontWeight:700, fontSize:16, marginBottom:14 }}>Por categoría</div>
+        {byCat.length === 0
+          ? <div style={{ textAlign:'center', padding:'30px 0', color:T.textDim, fontSize:14 }}>Sin gastos en este período</div>
+          : <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {byCat.map(cat => (
+                <div key={cat.id} style={{ background:T.bg1, border:`1px solid ${T.border}`, borderRadius:12, padding:'12px 14px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:18 }}>{cat.icon}</span>
+                      <span style={{ fontWeight:600, fontSize:14 }}>{cat.label}</span>
+                      <span style={{ fontSize:11, color:T.textDim, background:T.bg2, padding:'2px 7px', borderRadius:6 }}>{cat.count}</span>
+                    </div>
+                    <div style={{ fontWeight:700, fontSize:15, color:T.text }}>{fmt(cat.total)}</div>
+                  </div>
+                  <div style={{ background:T.bg3, borderRadius:999, height:4 }}>
+                    <div style={{ width:`${(cat.total/totalExp)*100}%`, height:'100%', background:T.green, borderRadius:999, opacity:0.8 }} />
+                  </div>
+                  <div style={{ textAlign:'right', fontSize:11, color:T.textDim, marginTop:4 }}>
+                    {Math.round((cat.total/totalExp)*100)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+        }
+      </div>
+    </div>
+  );
+};
+
+// ─── INVERSIONES TAB ──────────────────────────────────────────────────────────
+const InvestTab = ({ investments, setInvestments, exchangeRate }) => {
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState('');
+  const [ticker, setTicker] = useState('');
+  const [buyPrice, setBuyPrice] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [currency, setCurrency] = useState('ARS');
+  const [prices, setPrices] = useState({});
+  const [loadingPrices, setLoadingPrices] = useState(false);
+
+  // Simulate current prices (±20% variation from buy price)
+  const getCurrentPrice = (inv) => {
+    if (prices[inv.id] !== undefined) return prices[inv.id];
+    // Use a seeded pseudo-random based on id for demo consistency
+    const seed = inv.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0);
+    const variation = ((seed % 40) - 10) / 100;
+    return inv.buyPrice * (1 + variation);
+  };
+
+  const fetchPrices = async () => {
+    setLoadingPrices(true);
+    // Simulate API call
+    await new Promise(r => setTimeout(r, 800));
+    const newPrices = {};
+    investments.forEach(inv => {
+      const seed = inv.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0);
+      const variation = ((seed % 40) - 10) / 100;
+      newPrices[inv.id] = inv.buyPrice * (1 + variation + (Math.random() * 0.05 - 0.025));
+    });
+    setPrices(newPrices);
+    setLoadingPrices(false);
+  };
+
+  const totalInvested = investments.reduce((s, inv) => s + inv.buyPrice * inv.quantity, 0);
+  const totalCurrent = investments.reduce((s, inv) => s + getCurrentPrice(inv) * inv.quantity, 0);
+  const totalPnL = totalCurrent - totalInvested;
+  const pnlPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
+
+  const addInvestment = () => {
+    if (!name || isNaN(+buyPrice) || isNaN(+quantity)) return;
+    setInvestments(prev => [...prev, { id:uid(), name, ticker: ticker.toUpperCase(), buyPrice:+buyPrice, quantity:+quantity, currency }]);
+    setName(''); setTicker(''); setBuyPrice(''); setQuantity(''); setShowAdd(false);
+  };
+
+  const deleteInv = (id) => {
+    setInvestments(prev => prev.filter(i => i.id !== id));
+    setPrices(prev => { const p = {...prev}; delete p[id]; return p; });
+  };
+
+  return (
+    <div style={{ overflowY:'auto', height:'100%', paddingBottom:20 }}>
+      <div style={{ padding:'52px 20px 20px' }}>
+        <div style={{ fontWeight:800, fontSize:26, marginBottom:2 }}>Inversiones</div>
+        <div style={{ fontSize:13, color:T.textDim, marginBottom:20 }}>Portafolio en tiempo real</div>
+
+        {/* Summary */}
+        <div style={{ background:`linear-gradient(135deg, ${T.bg1}, ${T.bg2})`, border:`1px solid ${T.borderLight}`, borderRadius:18, padding:'20px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+            <div>
+              <div style={{ fontSize:11, color:T.textDim, textTransform:'uppercase', letterSpacing:0.8, marginBottom:6 }}>Valor actual</div>
+              <div style={{ fontWeight:800, fontSize:28, color:T.text }}>{fmtFull(totalCurrent)}</div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:11, color:T.textDim, textTransform:'uppercase', letterSpacing:0.8, marginBottom:6 }}>Invertido</div>
+              <div style={{ fontWeight:700, fontSize:18, color:T.textMid }}>{fmtFull(totalInvested)}</div>
+            </div>
+          </div>
+          <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{
+              background: totalPnL >= 0 ? T.greenBg : T.redBg,
+              border:`1px solid ${totalPnL >= 0 ? T.green : T.red}`,
+              borderRadius:8, padding:'6px 12px',
+              display:'flex', alignItems:'center', gap:6,
+            }}>
+              <Icon name={totalPnL >= 0 ? 'arrow_up' : 'arrow_down'} size={14} color={totalPnL >= 0 ? T.green : T.red} />
+              <span style={{ fontWeight:700, fontSize:14, color: totalPnL >= 0 ? T.green : T.red }}>
+                {totalPnL >= 0 ? '+' : ''}{fmtFull(totalPnL)} ({pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%)
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding:'0 20px', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+        <span style={{ fontWeight:700, fontSize:16 }}>{investments.length} posiciones</span>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={fetchPrices} disabled={loadingPrices} style={{
+            background:T.bg1, border:`1px solid ${T.border}`, borderRadius:8,
+            padding:'6px 12px', color:T.textMid, fontSize:13, fontWeight:600,
+            display:'flex', alignItems:'center', gap:4, opacity: loadingPrices ? 0.5 : 1,
+          }}>
+            <Icon name="refresh" size={14} color={T.textMid} />{loadingPrices ? 'Actualizando...' : 'Actualizar'}
+          </button>
+          <button onClick={() => setShowAdd(v => !v)} style={{
+            background:T.greenBg, border:`1px solid ${T.green}`, borderRadius:8,
+            padding:'6px 12px', color:T.green, fontSize:13, fontWeight:700,
+            display:'flex', alignItems:'center', gap:4,
+          }}>
+            <Icon name="plus" size={14} color={T.green} /> Nueva
+          </button>
+        </div>
+      </div>
+
+      {showAdd && (
+        <div style={{ margin:'0 20px 16px', background:T.bg1, border:`1px solid ${T.borderLight}`, borderRadius:14, padding:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+            <Input value={name} onChange={setName} placeholder="Nombre" />
+            <Input value={ticker} onChange={setTicker} placeholder="Ticker (ej: AAPL)" />
+          </div>
+          <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+            <select value={currency} onChange={e => setCurrency(e.target.value)} style={{
+              background:T.bg2, border:`1px solid ${T.border}`, borderRadius:10,
+              padding:'11px 12px', color:T.text, fontSize:14, width:90, appearance:'none',
+            }}>
+              <option value="ARS">ARS</option>
+              <option value="USD">USD</option>
+            </select>
+            <Input value={buyPrice} onChange={setBuyPrice} placeholder="Precio de compra" type="number" />
+            <Input value={quantity} onChange={setQuantity} placeholder="Cantidad" type="number" style={{ width:90, flex:'none' }} />
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={() => setShowAdd(false)} style={{ flex:1, padding:'10px', borderRadius:10, background:T.bg2, border:`1px solid ${T.border}`, color:T.textMid, fontWeight:600 }}>Cancelar</button>
+            <button onClick={addInvestment} style={{ flex:2, padding:'10px', borderRadius:10, background:T.green, color:'#08111F', fontWeight:700 }}>Agregar</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding:'0 20px', display:'flex', flexDirection:'column', gap:10 }}>
+        {investments.map(inv => {
+          const cur = getCurrentPrice(inv);
+          const cost = inv.buyPrice * inv.quantity;
+          const value = cur * inv.quantity;
+          const pnl = value - cost;
+          const pnlP = cost > 0 ? (pnl / cost) * 100 : 0;
+          return (
+            <div key={inv.id} style={{
+              background:T.bg1, border:`1px solid ${T.border}`, borderRadius:14, padding:'16px',
+            }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:15 }}>{inv.name}</div>
+                  {inv.ticker && <div style={{ fontSize:11, color:T.textDim, marginTop:2, background:T.bg2, display:'inline-block', padding:'2px 7px', borderRadius:6 }}>{inv.ticker}</div>}
+                </div>
+                <button onClick={() => deleteInv(inv.id)} style={{ background:'none', padding:4 }}>
+                  <Icon name="trash" size={16} color={T.textDim} />
+                </button>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginTop:14 }}>
+                <div>
+                  <div style={{ fontSize:10, color:T.textDim, textTransform:'uppercase', letterSpacing:0.6, marginBottom:3 }}>Compra</div>
+                  <div style={{ fontWeight:600, fontSize:13 }}>{fmtFull(inv.buyPrice, inv.currency)}</div>
+                  <div style={{ fontSize:11, color:T.textDim }}>{inv.quantity} unid.</div>
+                </div>
+                <div>
+                  <div style={{ fontSize:10, color:T.textDim, textTransform:'uppercase', letterSpacing:0.6, marginBottom:3 }}>Actual</div>
+                  <div style={{ fontWeight:600, fontSize:13, color: cur >= inv.buyPrice ? T.green : T.red }}>{fmtFull(cur, inv.currency)}</div>
+                  <div style={{ fontSize:11, color:T.textDim }}>{fmtFull(value, inv.currency)}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:10, color:T.textDim, textTransform:'uppercase', letterSpacing:0.6, marginBottom:3 }}>P&L</div>
+                  <div style={{ fontWeight:700, fontSize:14, color: pnl >= 0 ? T.green : T.red }}>
+                    {pnl >= 0 ? '+' : ''}{fmtFull(pnl, inv.currency)}
+                  </div>
+                  <div style={{ fontSize:11, fontWeight:600, color: pnl >= 0 ? T.green : T.red }}>
+                    {pnlP >= 0 ? '+' : ''}{pnlP.toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {investments.length === 0 && <div style={{ textAlign:'center', padding:'40px 0', color:T.textDim, fontSize:14 }}>No hay inversiones registradas.</div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState('panel');
+  const [showAdd, setShowAdd] = useState(false);
+
+  const [accounts, setAccountsRaw] = useState(() => load('fin_accounts', DEFAULT_ACCOUNTS));
+  const [transactions, setTransactionsRaw] = useState(() => load('fin_transactions', DEFAULT_TRANSACTIONS));
+  const [fixed, setFixedRaw] = useState(() => load('fin_fixed', DEFAULT_FIXED));
+  const [investments, setInvestmentsRaw] = useState(() => load('fin_investments', DEFAULT_INVESTMENTS));
+
+  const [exchangeRate, setExchangeRate] = useState(null);
+  const [rateLoading, setRateLoading] = useState(false);
+
+  const persist = (key, setter) => (val) => {
+    const next = typeof val === 'function' ? val(setter._state) : val;
+    setter._state = next;
+    save(key, next);
+    setter(next);
+  };
+
+  // Wrap setters with persistence
+  const setAccounts = useCallback((val) => {
+    setAccountsRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      save('fin_accounts', next);
+      return next;
+    });
+  }, []);
+  const setTransactions = useCallback((val) => {
+    setTransactionsRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      save('fin_transactions', next);
+      return next;
+    });
+  }, []);
+  const setFixed = useCallback((val) => {
+    setFixedRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      save('fin_fixed', next);
+      return next;
+    });
+  }, []);
+  const setInvestments = useCallback((val) => {
+    setInvestmentsRaw(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      save('fin_investments', next);
+      return next;
+    });
+  }, []);
+
+  const fetchRate = async () => {
+    setRateLoading(true);
+    try {
+      const res = await fetch('https://dolarapi.com/v1/dolares/oficial');
+      if (res.ok) {
+        const data = await res.json();
+        setExchangeRate(data.venta || data.compra);
+      }
+    } catch {
+      // fallback
+      setExchangeRate(1165);
+    }
+    setRateLoading(false);
+  };
+
+  useEffect(() => { fetchRate(); }, []);
+
+  const addTransaction = (tx) => {
+    setTransactions(prev => [tx, ...prev]);
+    // Update account balance
+    setAccounts(prev => prev.map(a => {
+      if (a.id !== tx.accountId) return a;
+      return { ...a, balance: a.balance + (tx.type === 'income' ? tx.amount : -tx.amount) };
+    }));
+  };
+
+  const tabs = [
+    { id:'panel', label:'Panel', icon:'home' },
+    { id:'plan', label:'Plan', icon:'plan' },
+    { id:'add', label:'', icon:'plus' },
+    { id:'stats', label:'Stats', icon:'stats' },
+    { id:'invest', label:'Inversiones', icon:'invest' },
+  ];
+
+  return (
+    <div style={{
+      width:'100%', height:'100%', maxWidth:480, margin:'0 auto',
+      display:'flex', flexDirection:'column',
+      background: T.bg0, position:'relative',
+    }}>
+      {/* Main content */}
+      <div style={{ flex:1, overflow:'hidden', position:'relative' }}>
+        {tab === 'panel' && <PanelTab accounts={accounts} transactions={transactions} setAccounts={setAccounts} exchangeRate={exchangeRate} rateLoading={rateLoading} refreshRate={fetchRate} />}
+        {tab === 'plan' && <PlanTab fixed={fixed} setFixed={setFixed} />}
+        {tab === 'stats' && <StatsTab transactions={transactions} accounts={accounts} />}
+        {tab === 'invest' && <InvestTab investments={investments} setInvestments={setInvestments} exchangeRate={exchangeRate} />}
+      </div>
+
+      {/* Bottom Nav */}
+      <div style={{
+        display:'flex', alignItems:'center', justifyContent:'space-around',
+        background:T.bg1, borderTop:`1px solid ${T.border}`,
+        padding:'8px 0 20px',
+        position:'relative',
+      }}>
+        {tabs.map(t => {
+          if (t.id === 'add') return (
+            <button key="add" onClick={() => setShowAdd(true)} style={{
+              width:54, height:54, borderRadius:'50%',
+              background:`linear-gradient(135deg, ${T.green}, ${T.greenDim})`,
+              boxShadow:`0 4px 20px ${T.green}44`,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              marginTop:-24,
+              border:`3px solid ${T.bg1}`,
+              transition:'transform 0.15s',
+            }}>
+              <Icon name="plus" size={24} color="#08111F" />
+            </button>
+          );
+          const active = tab === t.id;
+          return (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              display:'flex', flexDirection:'column', alignItems:'center', gap:4,
+              background:'none', padding:'4px 12px',
+              minWidth:60,
+            }}>
+              <div style={{ transition:'transform 0.15s', transform: active ? 'translateY(-2px)' : 'none' }}>
+                <Icon name={t.icon} size={22} color={active ? T.green : T.textDim} />
+              </div>
+              <span style={{ fontSize:10, fontWeight: active ? 700 : 500, color: active ? T.green : T.textDim, letterSpacing:0.3 }}>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <AddTransactionModal open={showAdd} onClose={() => setShowAdd(false)} accounts={accounts} onAdd={addTransaction} />
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+<style>
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+</style>
+</body>
+</html>
